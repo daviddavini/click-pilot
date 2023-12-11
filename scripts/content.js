@@ -1,18 +1,61 @@
-// document.addEventListener("click_from_page", function(e) {
-//     chrome.runtime.sendMessage(e.data);
-// });
+// Copied from https://stackoverflow.com/questions/2661818/javascript-get-xpath-of-a-node
+function createXPathFromElement(elm) { 
+    var allNodes = document.getElementsByTagName('*'); 
+    for (var segs = []; elm && elm.nodeType == 1; elm = elm.parentNode) 
+    { 
+        if (elm.hasAttribute('id')) { 
+                var uniqueIdCount = 0; 
+                for (var n=0;n < allNodes.length;n++) { 
+                    if (allNodes[n].hasAttribute('id') && allNodes[n].id == elm.id) uniqueIdCount++; 
+                    if (uniqueIdCount > 1) break; 
+                }; 
+                if ( uniqueIdCount == 1) { 
+                    segs.unshift('id("' + elm.getAttribute('id') + '")'); 
+                    return segs.join('/'); 
+                } else { 
+                    segs.unshift(elm.localName.toLowerCase() + '[@id="' + elm.getAttribute('id') + '"]'); 
+                } 
+        } else if (elm.hasAttribute('class')) { 
+            segs.unshift(elm.localName.toLowerCase() + '[@class="' + elm.getAttribute('class') + '"]'); 
+        } else { 
+            for (i = 1, sib = elm.previousSibling; sib; sib = sib.previousSibling) { 
+                if (sib.localName == elm.localName)  i++; }; 
+                segs.unshift(elm.localName.toLowerCase() + '[' + i + ']'); 
+        }; 
+    }; 
+    return segs.length ? '/' + segs.join('/') : null; 
+}; 
+
+// Copied from https://stackoverflow.com/questions/2661818/javascript-get-xpath-of-a-node
+function lookupElementByXPath(path) { 
+    var evaluator = new XPathEvaluator(); 
+    var result = evaluator.evaluate(path, document.documentElement, null,XPathResult.FIRST_ORDERED_NODE_TYPE, null); 
+    return  result.singleNodeValue; 
+} 
 
 document.body.addEventListener('click', function(e) {
-    // Create a simple, serializable object from the event.
     const message = {
-        // You can include other serializable properties as needed.
-        type: e.type,
         target: {
-            id: e.target.id,       // Example property: ID of the clicked element
-            className: e.target.className, // Example property: class of the clicked element
-            tagName: e.target.tagName, // Example property: tag name of the clicked element
+            id: e.target.id,
+            className: e.target.className,
+            tagName: e.target.tagName,
+            xpath: createXPathFromElement(e.target),
         },
-        // Include any other properties that you might need and are serializable.
     };
+    console.log(message.target.xpath);
     chrome.runtime.sendMessage(message);  
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "clickLink1") {
+      chrome.storage.sync.get("last_click", function(data){
+        console.log(data.last_click);
+        const element = lookupElementByXPath(data.last_click);
+        if(element) {
+          element.click();
+        } else {
+          console.log("Element not found");
+        }
+      });
+    }
 });
